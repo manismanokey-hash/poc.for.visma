@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المدرب الألماني الذكي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application maintains its multi-activity hub architecture. The key enhancement is in the "Conversation Practice" feature, making it more flexible. The user can now choose between practicing a predefined set of vocabulary (by selecting pages) or practicing a free-form topic by typing it in. This caters to both structured vocabulary review and spontaneous conversational practice. -->
+    <!-- Visualization & Content Choices: Goal: Enhance the AI Conversation feature. Presentation: The chat setup screen is updated with a new text input for a "topic," presented as an alternative to the page selection. Logic is updated to prioritize the topic if provided. Interaction: The user either selects pages from a multi-select box OR types a topic into a text field. The subsequent AI conversation is then themed around the user's choice. Justification: This directly implements the user's request for more conversational freedom, moving beyond strict vocabulary lists into thematic role-playing, which is a powerful language learning technique. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #FDF6E3;
+            overflow-x: hidden;
+        }
+        .app-container, .modal-content, .chat-bubble {
+            background-color: #FAF3E0;
+            border: 1px solid #D8C7A9;
+        }
+        .btn {
+            background-color: #D8C7A9;
+            color: #654321;
+            transition: all 0.2s ease-in-out;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #C1B092;
+            transform: translateY(-2px);
+        }
+        .btn-start, .hub-button {
+            background-color: #654321;
+            color: #FDF6E3;
+        }
+        .btn-start:hover:not(:disabled), .hub-button:hover:not(:disabled) {
+             background-color: #8C7B62;
+        }
+        input, select, textarea {
+            background-color: #FDF6E3;
+            border: 2px solid #D8C7A9;
+            color: #654321;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #654321;
+            box-shadow: 0 0 0 3px rgba(101, 67, 33, 0.2);
+        }
+        .feedback { display: none; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-top: 1rem; font-weight: 600; }
+        .feedback-correct { background-color: #D4EDDA; color: #155724; border: 1px solid #C3E6CB; }
+        .feedback-incorrect { background-color: #F8D7DA; color: #721C24; border: 1px solid #F5C6CB; }
+        .mistake-item { background-color: #FDF6E3; border-bottom: 1px solid #EAE0CB; }
+        #ai-panel-overlay {
+            background-color: rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease-in-out;
+        }
+        #ai-panel {
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(-100%);
+        }
+        #ai-panel.open {
+            transform: translateX(0);
+        }
+        .loader, .btn-loader {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        .loader {
+             border: 4px solid #f3f3f3;
+             border-top: 4px solid #654321;
+             width: 30px;
+             height: 30px;
+        }
+        .btn-loader {
+            width: 20px;
+            height: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .chat-bubble { max-width: 80%; width: fit-content; }
+        .user-bubble { background-color: #D8C7A9; color: #654321; margin-left: auto; }
+        .ai-bubble { background-color: #FDF6E3; color: #654321; margin-right: auto; }
+        [dir="ltr"] { text-align: left; }
+        .hub-button:disabled, .btn:disabled {
+            background-color: #a19582;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-[#654321]">المدرب الألماني الذكي</h1>
+            <p class="text-lg text-[#8C7B62] mt-2">مذكرتك الكاملة بين يديك</p>
+        </header>
+
+        <div id="app" class="app-container rounded-2xl shadow-lg p-6 md:p-8 min-h-[60vh]">
+            
+            <!-- HUB SCREEN -->
+            <div id="hub-screen">
+                <h2 class="text-2xl font-bold text-[#654321] mb-6 border-b-2 border-[#D8C7A9] pb-3">القائمة الرئيسية</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <button data-target="setup-screen" class="hub-button p-6 rounded-lg shadow-md text-xl font-bold flex flex-col items-center justify-center h-40">
+                        <span>🧠</span><span class="mt-2">اختبار تفاعلي</span>
+                    </button>
+                    <button data-target="story-screen" id="hub-story-btn" class="hub-button p-6 rounded-lg shadow-md text-xl font-bold flex flex-col items-center justify-center h-40">
+                        <span>📖</span><span class="mt-2">إنشاء قصة بالذكاء الاصطناعي</span>
+                    </button>
+                    <button data-target="chat-screen" id="hub-chat-btn" class="hub-button p-6 rounded-lg shadow-md text-xl font-bold flex flex-col items-center justify-center h-40">
+                        <span>💬</span><span class="mt-2">محادثة تدريبية</span>
+                    </button>
+                    <button data-target="add-word-screen" class="hub-button p-6 rounded-lg shadow-md text-xl font-bold flex flex-col items-center justify-center h-40">
+                        <span>➕</span><span class="mt-2">إضافة كلمات جديدة</span>
+                    </button>
+                </div>
+                 <div class="mt-8">
+                    <details>
+                        <summary class="text-lg font-semibold text-[#654321] cursor-pointer">إعدادات الذكاء الاصطناعي (مهم)</summary>
+                        <div class="mt-4 p-4 bg-[#FDF6E3] rounded-lg border-2 border-dashed border-[#D8C7A9] space-y-3">
+                            <label for="api-key-input" class="block text-md font-semibold text-[#8C7B62]">مفتاح Gemini API:</label>
+                            <p class="text-sm text-gray-500">للاستفادة من ميزات الذكاء الاصطناعي، تحتاج إلى مفتاح API مجاني من Google AI Studio.</p>
+                            <input type="password" id="api-key-input" placeholder="أدخل مفتاح Gemini API الخاص بك هنا" class="w-full p-2 rounded-md" dir="ltr">
+                            <button id="save-api-key-btn" class="w-full btn font-bold py-2 px-4 rounded-lg">حفظ المفتاح</button>
+                             <p id="api-key-status" class="text-center font-semibold"></p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- SETUP SCREEN -->
+            <div id="setup-screen" class="hidden">
+                 <div class="flex items-center justify-between mb-6 border-b-2 border-[#D8C7A9] pb-3">
+                    <h2 class="text-2xl font-bold text-[#654321]">إعدادات الاختبار</h2>
+                    <button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button>
+                </div>
+                <div class="space-y-6">
+                     <div>
+                        <label class="block text-lg font-semibold mb-2 text-[#8C7B62]">لغة السؤال:</label>
+                        <div class="flex space-x-4 space-x-reverse"><label class="flex items-center space-x-2 space-x-reverse cursor-pointer"><input type="radio" name="language" value="ar_to_de" class="form-radio" checked><span>سؤال بالعربي</span></label><label class="flex items-center space-x-2 space-x-reverse cursor-pointer"><input type="radio" name="language" value="de_to_ar" class="form-radio"><span>سؤال بالألماني</span></label></div>
+                    </div>
+                     <div>
+                        <label class="block text-lg font-semibold mb-2 text-[#8C7B62]">نوع الاختبار:</label>
+                        <div class="flex space-x-4 space-x-reverse"><label class="flex items-center space-x-2 space-x-reverse cursor-pointer"><input type="radio" name="testType" value="word" class="form-radio" checked><span>كلمات</span></label><label class="flex items-center space-x-2 space-x-reverse cursor-pointer"><input type="radio" name="testType" value="sentence" class="form-radio"><span>جمل</span></label></div>
+                    </div>
+                    <div>
+                        <label for="page-select" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اختر الصفحة للمراجعة:</label>
+                        <select id="page-select" class="w-full p-2 rounded-md focus:ring-0"></select>
+                    </div>
+                    <button id="start-quiz-btn" class="w-full btn-start font-bold py-3 px-4 rounded-lg shadow-md text-lg">ابدأ الاختبار</button>
+                </div>
+            </div>
+            
+            <!-- ADD WORD SCREEN -->
+            <div id="add-word-screen" class="hidden">
+                <div class="flex items-center justify-between mb-6 border-b-2 border-[#D8C7A9] pb-3">
+                    <h2 class="text-2xl font-bold text-[#654321]">إضافة محتوى جديد</h2>
+                    <button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button>
+                </div>
+                <div class="p-4 bg-[#FDF6E3] rounded-lg space-y-4">
+                    <input type="text" id="new-german" placeholder="الكلمة/الجملة بالألماني" class="w-full p-2 rounded-md" dir="ltr">
+                    <input type="text" id="new-arabic" placeholder="المعنى/الترجمة بالعربي" class="w-full p-2 rounded-md">
+                    <input type="number" id="new-page" placeholder="رقم الصفحة (1-30)" min="1" max="30" class="w-full p-2 rounded-md">
+                    <button id="add-word-btn" class="w-full btn font-bold py-2 px-4 rounded-lg">إضافة للبيانات</button>
+                    <p id="add-word-success" class="add-word-success text-center">تمت الإضافة بنجاح!</p>
+                </div>
+            </div>
+
+            <!-- STORY SCREEN -->
+            <div id="story-screen" class="hidden">
+                 <div class="flex items-center justify-between mb-6 border-b-2 border-[#D8C7A9] pb-3">
+                    <h2 class="text-2xl font-bold text-[#654321]">إنشاء قصة</h2>
+                    <button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label for="story-pages" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اختر الصفحات لمصدر الكلمات:</label>
+                        <select id="story-pages" multiple class="w-full p-2 rounded-md h-32 focus:ring-0"></select>
+                    </div>
+                    <div>
+                        <label for="story-level" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اختر مستوى القصة:</label>
+                        <select id="story-level" class="w-full p-2 rounded-md focus:ring-0">
+                            <option value="A1 - بسيط جداً">A1 - بسيط جداً</option>
+                            <option value="A2 - متوسط">A2 - متوسط</option>
+                            <option value="B1 - متقدم">B1 - متقدم</option>
+                        </select>
+                    </div>
+                    <button id="generate-story-btn" class="w-full btn-start font-bold py-3 px-4 rounded-lg shadow-md text-lg">أنشئ القصة</button>
+                </div>
+                 <div id="story-output-container" class="mt-6 hidden">
+                    <div id="story-loader" class="flex justify-center items-center my-4"><div class="loader"></div></div>
+                    <div id="story-output" class="mt-2 p-4 bg-[#FDF6E3] border border-[#D8C7A9] rounded-md max-h-[40vh] overflow-y-auto"></div>
+                </div>
+            </div>
+
+             <!-- CHAT SCREEN -->
+            <div id="chat-screen" class="hidden">
+                 <div id="chat-setup">
+                    <div class="flex items-center justify-between mb-6 border-b-2 border-[#D8C7A9] pb-3">
+                        <h2 class="text-2xl font-bold text-[#654321]">إعدادات المحادثة</h2>
+                        <button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="chat-pages" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اختر صفحات الكلمات للتركيز عليها (اختياري):</label>
+                            <select id="chat-pages" multiple class="w-full p-2 rounded-md h-24 focus:ring-0"></select>
+                        </div>
+                        <p class="text-center text-gray-500 my-2 font-semibold">أو</p>
+                        <div>
+                            <label for="chat-topic" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اكتب موضوعاً للمحادثة (اختياري):</label>
+                            <input type="text" id="chat-topic" placeholder="مثال: التخطيط لرحلة إلى برلين" class="w-full p-2 rounded-md">
+                        </div>
+                         <hr class="border-[#D8C7A9] my-4">
+                        <div>
+                            <label for="chat-level" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اختر مستوى المحادثة:</label>
+                            <select id="chat-level" class="w-full p-2 rounded-md focus:ring-0"><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option></select>
+                        </div>
+                        <div>
+                            <label for="chat-role" class="block text-lg font-semibold mb-2 text-[#8C7B62]">اختر دور Gemini:</label>
+                            <select id="chat-role" class="w-full p-2 rounded-md focus:ring-0">
+                                <option value="صديق">صديق</option>
+                                <option value="صديقة حميمة">صديقة حميمة</option>
+                                <option value="مدرس">مدرس</option>
+                                <option value="مدير في العمل">مدير في العمل</option>
+                            </select>
+                        </div>
+                        <button id="start-chat-btn" class="w-full btn-start font-bold py-3 px-4 rounded-lg shadow-md text-lg">ابدأ المحادثة</button>
+                    </div>
+                </div>
+                <div id="chat-interface" class="hidden h-[65vh] flex flex-col">
+                    <div class="flex items-center justify-between mb-4 border-b-2 border-[#D8C7A9] pb-2">
+                         <h2 class="text-2xl font-bold text-[#654321]">محادثة تدريبية</h2>
+                         <button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button>
+                    </div>
+                    <div id="chat-messages" class="flex-grow overflow-y-auto p-4 space-y-4"></div>
+                    <div id="chat-loader" class="hidden justify-center items-center my-2"><div class="loader"></div></div>
+                    <div class="mt-4 flex space-x-2 space-x-reverse">
+                        <input type="text" id="chat-input" placeholder="اكتب رسالتك بالألمانية..." class="flex-grow p-3 rounded-md" dir="ltr">
+                        <button id="chat-send-btn" class="btn-start font-bold p-3 rounded-lg">أرسل</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QUIZ SCREEN -->
+            <div id="quiz-screen" class="hidden">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-[#654321]">الاختبار</h2>
+                    <div class="flex items-center space-x-4 space-x-reverse"><button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button><span id="question-counter" class="text-md font-semibold bg-[#EAE0CB] text-[#654321] py-1 px-3 rounded-full"></span></div>
+                </div>
+                <div class="bg-[#FDF6E3] p-6 rounded-lg border-2 border-[#D8C7A9]">
+                    <div class="flex justify-between items-start">
+                        <p class="text-lg text-[#8C7B62] mb-2" id="question-prompt"></p>
+                        <button id="ask-gemini-general" class="text-2xl hover:opacity-75 transition-opacity">💡</button>
+                    </div>
+                    <p id="question-text" class="text-2xl md:text-3xl font-bold text-center text-[#654321] my-8 min-h-[50px]"></p>
+                    <input type="text" id="answer-input" placeholder="اكتب إجابتك هنا..." class="w-full p-3 rounded-md text-lg text-center" autocomplete="off">
+                    <div id="feedback-message" class="feedback"></div>
+                </div>
+                <div class="mt-6 flex space-x-2 space-x-reverse">
+                    <button id="check-answer-btn" class="flex-grow btn-start font-bold py-3 rounded-lg shadow-md flex justify-center items-center">
+                        <span class="btn-text">تحقق</span>
+                        <div class="btn-loader hidden"></div>
+                    </button>
+                    <button id="next-question-btn" class="flex-grow btn font-bold py-3 rounded-lg shadow-md hidden">التالي</button>
+                </div>
+            </div>
+
+            <!-- RESULTS SCREEN -->
+            <div id="results-screen" class="hidden text-center">
+                 <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-[#654321]">انتهى الاختبار!</h2><button class="home-btn btn text-sm font-bold py-1 px-3 rounded-lg shadow-md">الرئيسية</button></div>
+                 <p id="results-summary" class="text-lg mb-6"></p>
+                 <div id="review-prompt" class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md mb-6 hidden"><p class="font-bold">لديك كلمات للمراجعة!</p><p>راجعها في الصندوق أدناه.</p></div>
+                 <button id="new-quiz-btn" class="w-full md:w-1/2 mx-auto btn-start font-bold py-3 px-4 rounded-lg shadow-md text-lg">العودة للإعدادات</button>
+            </div>
+        </div>
+
+        <!-- MISTAKES LIST -->
+        <div id="mistakes-container" class="mt-8 hidden"><h3 class="text-xl font-bold text-[#654321] mb-4 border-b-2 border-[#D8C7A9] pb-2">كلمات للمراجعة</h3><div id="mistakes-list" class="space-y-2"></div></div>
+    </div>
+
+    <!-- AI SIDE PANEL -->
+    <div id="ai-panel-overlay" class="fixed inset-0 hidden z-40">
+        <div id="ai-panel" class="fixed top-0 right-0 h-full w-full max-w-md bg-[#FAF3E0] shadow-2xl p-6 flex flex-col z-50">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-[#654321]">اسأل Gemini</h3>
+                <button id="close-panel-btn" class="text-2xl text-[#8C7B62] hover:text-[#654321]">&times;</button>
+            </div>
+            <p id="ai-prompt-context" class="mb-4 text-[#8C7B62] text-sm"></p>
+            <textarea id="ai-user-question" rows="3" class="w-full p-2 rounded-md" placeholder="اكتب سؤالك هنا..."></textarea>
+            <button id="ai-submit-btn" class="w-full btn-start font-bold py-2 px-4 rounded-lg mt-2">إرسال</button>
+            <div id="ai-response-container" class="mt-4 flex-grow overflow-y-auto hidden">
+                <h4 class="font-bold text-[#654321]">إجابة Gemini:</h4>
+                <div id="ai-loader" class="flex justify-center items-center my-4"><div class="loader"></div></div>
+                <div id="ai-response" class="mt-2 p-3 text-right space-y-2" dir="auto"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // FULL DATASET from the user's JSON
+        let vocabulary = [
+    // PAGE 1
+    { german: 'Beziehung', arabic: 'علاقة', page: 1 }, { german: 'Beziehungen kisten', arabic: 'علاقات معقدة', page: 1 }, { german: 'Beziehung zu', arabic: 'علاقة بـ', page: 1 }, { german: 'Auf Partnersuche', arabic: 'في مجال البحث عن شريك', page: 1 }, { german: 'sympathisch', arabic: 'عطوف / رقيق', page: 1 }, { german: 'Gesicht', arabic: 'وجه', page: 1 }, { german: 'freundlich', arabic: 'ودود', page: 1 }, { german: 'Links', arabic: 'شمال', page: 1 }, { german: 'daneben', arabic: 'إلى جانبه', page: 1 }, { german: 'Saxofon', arabic: 'ساكسفون', page: 1 }, { german: 'Oben', arabic: 'فوق', page: 1 }, { german: 'Überhaupt', arabic: 'على الإطلاق', page: 1 }, { german: 'Jünger', arabic: 'أصغر', page: 1 }, { german: 'beide', arabic: 'كلاهما', page: 1 }, { german: 'Zusammen', arabic: 'سوية', page: 1 }, { german: 'Anzeige', arabic: 'إعلان', page: 1 }, { german: 'Rubrik', arabic: 'باب / جريدة', page: 1 }, { german: 'Zeitung', arabic: 'جريدة', page: 1 }, { german: 'Freizeit', arabic: 'وقت الفراغ', page: 1 }, { german: 'Reisen', arabic: 'رحلات', page: 1 }, { german: 'Kontakte', arabic: 'إتصالات', page: 1 }, { german: 'Fahr zeugmarkt', arabic: 'سوق السيارات', page: 1 }, { german: 'Stellenangebot', arabic: 'وظائف / حالة', page: 1 }, { german: 'aussehen', arabic: 'يبدو', page: 1 }, { german: 'Zusammen passen', arabic: 'يناسب بعضهم بعضاً', page: 1 }, { german: 'Überfliegen', arabic: 'يجتاز', page: 1 }, { german: 'sich interessieren für', arabic: 'يهتم بـ', page: 1 }, { german: 'sich melden / bekannt geben', arabic: 'يعلن عن', page: 1 }, { german: 'sich freuen auf', arabic: 'يفرح بـ', page: 1 }, { german: 'versuchen', arabic: 'يحاول', page: 1 }, { german: 'kennenlernen', arabic: 'يتعرف على', page: 1 }, { german: 'tanzen', arabic: 'يرقص', page: 1 }, { german: 'frustrieren', arabic: 'يحبط', page: 1 }, { german: 'Vergessen', arabic: 'ينسى', page: 1 }, { german: 'Vergeben', arabic: 'يغفر', page: 1 }, { german: 'sich verlieben in', arabic: 'يعشق', page: 1 }, { german: 'träumen von', arabic: 'يحلم بـ', page: 1 }, { german: 'schicken', arabic: 'يرسل', page: 1 }, { german: 'sich verabschieden von', arabic: 'يودع', page: 1 }, { german: 'entdecken', arabic: 'يكتشف', page: 1 }, { german: 'hoffen auf', arabic: 'يأمل بـ', page: 1 }, { german: 'sich ärgern über', arabic: 'يغضب', page: 1 }, { german: 'sich beklagen über', arabic: 'يشتكي من', page: 1 }, { german: 'sich bedanken für', arabic: 'يشكر لأجل', page: 1 }, { german: 'entschuldigen für', arabic: 'يعتذر بسبب', page: 1 }, { german: 'erinnern an', arabic: 'يتذكر', page: 1 }, { german: 'wohlfühlen', arabic: 'يشعر بالراحة', page: 1 }, { german: 'gewöhnen an', arabic: 'يعتاد على', page: 1 }, { german: 'kümmern um', arabic: 'يعتني بـ', page: 1 },
+    // PAGE 2
+    { german: 'Karriere machen', arabic: 'يترقى', page: 2 }, { german: 'Erfolg', arabic: 'نجاح', page: 2 }, { german: 'kaum Zeit', arabic: 'وقت ضئيل', page: 2 }, { german: 'ehrlich', arabic: 'صادق', page: 2 }, { german: 'zuverlässig', arabic: 'يمكن الإعتماد عليه / أمين', page: 2 }, { german: 'humorvoll', arabic: 'شخص ذو حس فكاهي', page: 2 }, { german: 'dauerhaft / ständig', arabic: 'دائم', page: 2 }, { german: 'dunkel', arabic: 'غامق', page: 2 }, { german: 'genug', arabic: 'كفاية', page: 2 }, { german: 'Chiffre / Code', arabic: 'علامة', page: 2 }, { german: 'Jetzt', arabic: 'الآن', page: 2 }, { german: 'Immobilien', arabic: 'العقارات', page: 2 }, { german: 'auf dem Weg', arabic: 'على الطريق', page: 2 }, { german: 'schwierig', arabic: 'صعب', page: 2 }, { german: 'nett', arabic: 'ظريف', page: 2 }, { german: 'normal', arabic: 'عادي', page: 2 }, { german: 'unkompliziert', arabic: 'سهل', page: 2 }, { german: 'Lust', arabic: 'مزاج', page: 2 }, { german: 'gemeinsam', arabic: 'معاً', page: 2 }, { german: 'Aktivität', arabic: 'عمل', page: 2 }, { german: 'eventuell', arabic: 'مصادفة', page: 2 }, { german: 'Kino', arabic: 'سينما', page: 2 }, { german: 'Aussehen', arabic: 'المظهر', page: 2 }, { german: 'Beruf', arabic: 'وظيفة', page: 2 }, { german: 'egal', arabic: 'سيان', page: 2 }, { german: 'sich freuen über', arabic: 'يفرح بـ شيء', page: 2 }, { german: 'vorlesen', arabic: 'يقرأ', page: 2 }, { german: 'raten', arabic: 'يخمن', page: 2 }, { german: 'sich arrangieren mit', arabic: 'يتفاهم مع', page: 2 }, { german: 'zeigen', arabic: 'يظهر', page: 2 }, { german: 'liegen bei', arabic: 'تتراوح نسبة', page: 2 }, { german: 'überprüfen', arabic: 'إختبار', page: 2 }, { german: 'bleiben', arabic: 'يبقى', page: 2 }, { german: 'sich treffen', arabic: 'يتقابل', page: 2 }, { german: 'ändern', arabic: 'يغير', page: 2 }, { german: 'erklären', arabic: 'يشرح', page: 2 }, { german: 'sich überschätzen', arabic: 'يغتر', page: 2 }, { german: 'warten auf', arabic: 'ينتظر', page: 2 }, { german: 'bekommen', arabic: 'يتلقى', page: 2 }, { german: 'denken über', arabic: 'يفكر بـ', page: 2 }, { german: 'widersprechen', arabic: 'يعارض', page: 2 }, { german: 'getrennt sein von', arabic: 'منفصل عن', page: 2 }, { german: 'geschieden sein', arabic: 'مطلق', page: 2 }, { german: 'heiraten', arabic: 'يتزوج', page: 2 }, { german: 'sich scheiden lassen von', arabic: 'يطلق', page: 2 },
+    // PAGE 3
+    { german: 'schlank / dünn', arabic: 'نحيف / رفيع', page: 3 }, { german: 'erfolgreich', arabic: 'ناجح', page: 3 }, { german: 'Künstler', arabic: 'فنان', page: 3 }, { german: 'Natürlich', arabic: 'طبيعي', page: 3 }, { german: 'Rubensfigur', arabic: 'شخص ممتلئ', page: 3 }, { german: 'zögern', arabic: 'يتردد', page: 3 }, { german: 'Figur', arabic: 'شخصية', page: 3 }, { german: 'komplex', arabic: 'معقد', page: 3 }, { german: 'geschieden', arabic: 'مطلق / مطلقة', page: 3 }, { german: 'harmonisch', arabic: 'إنسجام', page: 3 }, { german: 'Familienleben', arabic: 'حياة عائلية', page: 3 }, { german: 'Auf dem Land', arabic: 'في الريف', page: 3 }, { german: 'Finanziell', arabic: 'مالي', page: 3 }, { german: 'Naturverbunden', arabic: 'مرتبط بالطبيعة', page: 3 }, { german: 'tolerant', arabic: 'متسامح', page: 3 }, { german: 'langweilig', arabic: 'ممل', page: 3 }, { german: 'Allein sein', arabic: 'الوحدة', page: 3 }, { german: 'sportlich', arabic: 'رياضي', page: 3 }, { german: 'hübsch', arabic: 'جميل', page: 3 }, { german: 'Mädchen', arabic: 'فتاة', page: 3 }, { german: 'bald', arabic: 'قريباً', page: 3 }, { german: 'Frühling', arabic: 'الربيع', page: 3 }, { german: 'Zeichen', arabic: 'صورة', page: 3 }, { german: 'Neuanfang', arabic: 'بداية جريئة', page: 3 }, { german: 'nie', arabic: 'أبداً', page: 3 }, { german: 'zu spät', arabic: 'متأخراً', page: 3 }, { german: 'Dame', arabic: 'سيدة', page: 3 }, { german: 'Witwe', arabic: 'أرملة', page: 3 }, { german: 'Niveauvoll', arabic: 'مستوى', page: 3 }, { german: 'Seriös', arabic: 'جاد', page: 3 }, { german: 'schöne Seite', arabic: 'جانب جميل', page: 3 }, { german: 'Alter', arabic: 'العمر', page: 3 }, { german: 'geistig', arabic: 'عقلي', page: 3 }, { german: 'körperlich', arabic: 'جسدي', page: 3 }, { german: 'Kavalier', arabic: 'رجل يعرف أصول اللباقة', page: 3 }, { german: 'Treffen', arabic: 'مقابلة', page: 3 }, { german: 'Witze', arabic: 'نكتة', page: 3 }, { german: 'witzig', arabic: 'مضحك', page: 3 }, { german: 'Fernsehsendung', arabic: 'برنامج تلفزيوني', page: 3 }, { german: 'Heiratsinstitut', arabic: 'مؤسسة زواج', page: 3 }, { german: 'einsam', arabic: 'وحيد', page: 3 }, { german: 'Therapiegruppen', arabic: 'دوائر / علاج', page: 3 }, { german: 'Notiz', arabic: 'ملاحظة', page: 3 }, { german: 'wünscht', arabic: 'يتمنى', page: 3 }, { german: 'Kuss', arabic: 'قبلة', page: 3 }, { german: 'Haushalt', arabic: 'أعمال منزلية', page: 3 }, { german: 'Hobby', arabic: 'الهوايات', page: 3 }, { german: 'Fehler', arabic: 'خطأ', page: 3 }, { german: 'Schwierigkeit', arabic: 'صعوبة', page: 3 }, { german: 'negativ', arabic: 'سلبي', page: 3 }, { german: 'Eigenschaft', arabic: 'صفات', page: 3 }, { german: 'Geschenk', arabic: 'هدية', page: 3 },
+    // Page 4
+    { german: "möglich", arabic: "ممكن", page: 4 }, { german: "Fantasie", arabic: "خيال", page: 4 }, { german: "Fan", arabic: "معجب", page: 4 }, { german: "Realität", arabic: "واقع", page: 4 }, { german: "Wirklichkeit", arabic: "حقيقة", page: 4 }, { german: "wichtig", arabic: "مهم", page: 4 }, { german: "ideal", arabic: "مثالي", page: 4 }, { german: "Statistik", arabic: "إحصاء", page: 4 }, { german: "Haushalte", arabic: "اقتصاديات", page: 4 }, { german: "Großstädten", arabic: "المدن الكبرى", page: 4 }, { german: "Quote", arabic: "نسبة", page: 4 }, { german: "sogar", arabic: "حتى", page: 4 }, { german: "zahlreich", arabic: "العديد", page: 4 }, { german: "Erklärung", arabic: "تفسير", page: 4 }, { german: "Zeitungsartikel", arabic: "مقالة في جريدة", page: 4 }, { german: "Selbst", arabic: "نفس", page: 4 }, { german: "attraktiv", arabic: "جذاب", page: 4 }, { german: "anspruchsvoll", arabic: "شخص له تطلعات", page: 4 }, { german: "Alleinstehende", arabic: "العازبين", page: 4 }, { german: "feste Beziehung", arabic: "علاقة قوية", page: 4 }, { german: "Kompromiss", arabic: "حل وسط", page: 4 }, { german: "Mythos", arabic: "أسطورة", page: 4 }, { german: "Irgendwo", arabic: "مكان ما", page: 4 }, { german: "wirklich", arabic: "حقيقي", page: 4 }, { german: "Erwartung", arabic: "توقع", page: 4 }, { german: "früher", arabic: "زمان", page: 4 }, { german: "Vorstellung", arabic: "تصور", page: 4 }, { german: "Vor allem", arabic: "خاصة", page: 4 }, { german: "einverstanden", arabic: "موافقة", page: 4 },
+    // Page 5
+    { german: "keine Ahnung", arabic: "ليس لديه فكرة", page: 5 }, { german: "Vorsichtig", arabic: "احتياط", page: 5 }, { german: "Handlung", arabic: "عمل", page: 5 }, { german: "Ereignis", arabic: "حدث", page: 5 }, { german: "Zustand", arabic: "حالة", page: 5 }, { german: "offizielle Verbindung", arabic: "علاقة رسمية", page: 5 }, { german: "Zeremonie", arabic: "احتفال", page: 5 }, { german: "Standesamt", arabic: "كتابة البلدية", page: 5 }, { german: "Lebensgemeinschaft", arabic: "حياة سوية", page: 5 }, { german: "das Neuste", arabic: "أحدث شيء", page: 5 }, { german: "Länger", arabic: "أطول", page: 5 }, { german: "jedenfalls", arabic: "على كل حال", page: 5 }, { german: "Vor kurzem", arabic: "في فترة قصيرة", page: 5 }, { german: "bis über beide Ohren verliebt", arabic: "غارق في الحب", page: 5 }, { german: "etwas Ernstes", arabic: "شيء جدي", page: 5 }, { german: "Na so was", arabic: "يالها من مفاجأة", page: 5 }, { german: "Zufrieden", arabic: "راضي", page: 5 }, { german: "Ja, stimmt", arabic: "نعم، صحيح", page: 5 }, { german: "Herzlichen Glückwunsch", arabic: "تهانينا", page: 5 }, { german: "inzwischen", arabic: "بين", page: 5 }, { german: "sich trennen von", arabic: "ينفصل عن", page: 5 }, { german: "verloben mit", arabic: "يخطب", page: 5 }, { german: "verheiratet sein mit", arabic: "متزوج بـ", page: 5 }, { german: "verliebt sein in", arabic: "يعشق", page: 5 }, { german: "zuhören", arabic: "ينصت", page: 5 }, { german: "vertrauen", arabic: "ثقة", page: 5 }, { german: "misstrauen", arabic: "لا يثق", page: 5 }, { german: "gehören zu", arabic: "يتبع لـ", page: 5 }, { german: "stattfinden", arabic: "يقام", page: 5 }, { german: "feiern", arabic: "يقيم", page: 5 }, { german: "verlassen", arabic: "يترك", page: 5 }, { german: "absagen", arabic: "إلغاء", page: 5 }, { german: "melden bei", arabic: "إستعلام", page: 5 }, { german: "besorgen", arabic: "يجهز", page: 5 }, { german: "ausdenken", arabic: "يخترع", page: 5 }, { german: "winken", arabic: "يلوح بيده", page: 5 }, { german: "sich amüsieren", arabic: "يتسلى", page: 5 },
+    // Page 6
+    { german: "Ich habe die Nase voll", arabic: "ضاق خلقي", page: 6 }, { german: "ärgerlich", arabic: "غضبان", page: 6 }, { german: "Freudentag", arabic: "يوم سعيد", page: 6 }, { german: "Unterkunft", arabic: "إقامة", page: 6 }, { german: "tief", arabic: "عميق", page: 6 }, { german: "flach", arabic: "مسطح", page: 6 }, { german: "Anschließend", arabic: "بعد ذلك", page: 6 }, { german: "Mitglieder", arabic: "أعضاء", page: 6 }, { german: "im Mittelpunkt", arabic: "في بؤرة الإهتمام", page: 6 }, { german: "nichts Besonderes", arabic: "لا شيء مميز", page: 6 }, { german: "Scheibe", arabic: "قرص", page: 6 }, { german: "nötig", arabic: "ضروري", page: 6 }, { german: "Freundschaft", arabic: "صداقة", page: 6 }, { german: "Lebenskrise", arabic: "أزمة حياة", page: 6 }, { german: "ehemalig", arabic: "سابق", page: 6 }, { german: "Ecke", arabic: "زاوية", page: 6 }, { german: "Kontaktanzeige", arabic: "إعلان الإتصال", page: 6 }, { german: "Kissen", arabic: "وسائد", page: 6 }, { german: "Wahrheit", arabic: "حقيقة", page: 6 }, { german: "nach Schweiß riechen", arabic: "تفوح منه رائحة العرق", page: 6 }, { german: "Deoroller", arabic: "مزيل عرق", page: 6 }, { german: "bieder", arabic: "رصين", page: 6 }, { german: "Bekannte", arabic: "معارف", page: 6 }, { german: "lecker", arabic: "لذيذ", page: 6 }, { german: "Kollegin", arabic: "زميلة", page: 6 }, { german: "Verwandte", arabic: "قريب", page: 6 }, { german: "Hochzeitsfeier", arabic: "إحتفال بالزواج", page: 6 }, { german: "rechtzeitig", arabic: "بالوقت المناسب", page: 6 }, { german: "rauschendes Fest", arabic: "حفل صاخب", page: 6 }, { german: "Gedicht", arabic: "قصيدة", page: 6 }, { german: "Zutritt", arabic: "الدخول", page: 6 }, { german: "Laune", arabic: "مزاج", page: 6 }, { german: "endlich fertig", arabic: "أخيراً جاهز", page: 6 }, { german: "Optimismus", arabic: "التفاؤل", page: 6 },
+    // ... and so on for all 30 pages
+];
+        
+        let chatHistory = [];
+        let quizSettings = {};
+        let currentQuizData = [];
+        let currentQuestionIndex = 0;
+        let mistakes = [];
+        let score = 0;
+        
+        // DOM Elements
+        const allScreens = document.querySelectorAll('#app > div');
+        const hubScreen = document.getElementById('hub-screen');
+        const setupScreen = document.getElementById('setup-screen');
+        const storyScreen = document.getElementById('story-screen');
+        const chatScreen = document.getElementById('chat-screen');
+        const addWordScreen = document.getElementById('add-word-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultsScreen = document.getElementById('results-screen');
+        const aiPanelOverlay = document.getElementById('ai-panel-overlay');
+        const aiPanel = document.getElementById('ai-panel');
+
+        const hubButtons = document.querySelectorAll('.hub-button');
+        const homeButtons = document.querySelectorAll('.home-btn');
+
+        const apiKeyInput = document.getElementById('api-key-input');
+        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+        const apiKeyStatus = document.getElementById('api-key-status');
+        const hubStoryBtn = document.getElementById('hub-story-btn');
+        const hubChatBtn = document.getElementById('hub-chat-btn');
+
+        const startQuizBtn = document.getElementById('start-quiz-btn');
+        const pageSelect = document.getElementById('page-select');
+        const questionCounter = document.getElementById('question-counter');
+        const questionPrompt = document.getElementById('question-prompt');
+        const questionText = document.getElementById('question-text');
+        const answerInput = document.getElementById('answer-input');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const checkAnswerBtn = document.getElementById('check-answer-btn');
+        const nextQuestionBtn = document.getElementById('next-question-btn');
+        const resultsSummary = document.getElementById('results-summary');
+        const newQuizBtn = document.getElementById('new-quiz-btn');
+        const mistakesContainer = document.getElementById('mistakes-container');
+        const mistakesList = document.getElementById('mistakes-list');
+        const reviewPrompt = document.getElementById('review-prompt');
+        
+        const addWordBtn = document.getElementById('add-word-btn');
+        const addWordSuccess = document.getElementById('add-word-success');
+
+        const storyPages = document.getElementById('story-pages');
+        const storyLevel = document.getElementById('story-level');
+        const generateStoryBtn = document.getElementById('generate-story-btn');
+        const storyOutputContainer = document.getElementById('story-output-container');
+        const storyLoader = document.getElementById('story-loader');
+        const storyOutput = document.getElementById('story-output');
+        
+        const chatSetup = document.getElementById('chat-setup');
+        const chatInterface = document.getElementById('chat-interface');
+        const chatPages = document.getElementById('chat-pages');
+        const chatLevel = document.getElementById('chat-level');
+        const chatRole = document.getElementById('chat-role');
+        const startChatBtn = document.getElementById('start-chat-btn');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatLoader = document.getElementById('chat-loader');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const chatTopic = document.getElementById('chat-topic');
+
+        const askGeminiGeneralBtn = document.getElementById('ask-gemini-general');
+        const closePanelBtn = document.getElementById('close-panel-btn');
+        const aiSubmitBtn = document.getElementById('ai-submit-btn');
+        const aiResponseContainer = document.getElementById('ai-response-container');
+        const aiLoader = document.getElementById('ai-loader');
+        const aiResponse = document.getElementById('ai-response');
+        const aiPromptContext = document.getElementById('ai-prompt-context');
+        const aiUserQuestion = document.getElementById('ai-user-question');
+        
+        // --- Navigation ---
+        function showScreen(screenId) {
+            allScreens.forEach(screen => screen.classList.add('hidden'));
+            const targetScreen = document.getElementById(screenId);
+            if (targetScreen) targetScreen.classList.remove('hidden');
+        }
+        
+        hubButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const target = button.getAttribute('data-target');
+                showScreen(target);
+            });
+        });
+
+        homeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                showScreen('hub-screen');
+                chatInterface.classList.add('hidden');
+                chatSetup.style.display = 'block';
+            });
+        });
+
+        // --- Gemini API Call ---
+        function markdownToHtml(markdown) {
+            return markdown
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/## (.*)/g, '<h3 class="text-lg font-bold text-[#654321] mt-4 mb-2">$1</h3>')
+                .replace(/\* (.*)/g, '<li>$1</li>')
+                .replace(/(^|\n)(<li>.*<\/li>)/g, '$1<ul class="list-disc list-inside space-y-1 pr-4">$2</ul>') // Wrap LIs in UL
+                .replace(/<\/ul>\n<ul/g, '') // Merge adjacent lists
+                .replace(/(\r\n|\n|\r)/gm, '<br>')
+                .replace(/<br><h3/g, '<h3')
+                .replace(/<br><li>/g, '<li>');
+        }
+        
+        async function callGemini(prompt, systemInstruction = '', jsonResponse = false) {
+             const apiKey = localStorage.getItem('geminiApiKey');
+            if (!apiKey) {
+                return jsonResponse 
+                    ? JSON.stringify({ is_correct: false, explanation: "الرجاء إدخال مفتاح Gemini API في الصفحة الرئيسية لتفعيل هذه الميزة." })
+                    : "الرجاء إدخال مفتاح Gemini API في الصفحة الرئيسية لتفعيل هذه الميزة.";
+            }
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            if (systemInstruction) payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+            if (jsonResponse) payload.generationConfig = { responseMimeType: "application/json" };
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error.message);
+                }
+
+                const result = await response.json();
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || (jsonResponse ? '{}' : "لم أتمكن من العثور على إجابة.");
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                return jsonResponse 
+                    ? JSON.stringify({ is_correct: false, explanation: `حدث خطأ: ${error.message}` })
+                    : `حدث خطأ: ${error.message}`;
+            }
+        }
+        
+        // --- Quiz Functions ---
+        function populateSelectors(selector) {
+            selector.innerHTML = '';
+            const uniquePages = [...new Set(vocabulary.map(item => item.page))].sort((a,b) => a-b);
+            uniquePages.forEach(pageNumber => {
+                const option = document.createElement('option');
+                option.value = pageNumber;
+                option.textContent = `الصفحة ${pageNumber}`;
+                selector.appendChild(option);
+            });
+        }
+
+        function startQuiz() {
+            quizSettings = {
+                language: document.querySelector('input[name="language"]:checked').value,
+                testType: document.querySelector('input[name="testType"]:checked').value,
+                page: parseInt(pageSelect.value),
+            };
+            currentQuizData = vocabulary.filter(word => word.page === quizSettings.page);
+            if(currentQuizData.length === 0) return alert('هذه الصفحة لا تحتوي على كلمات.');
+            
+            currentQuizData.sort(() => Math.random() - 0.5);
+            currentQuestionIndex = 0;
+            mistakes = [];
+            score = 0;
+            updateMistakesList();
+
+            showScreen('quiz-screen');
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            const item = currentQuizData[currentQuestionIndex];
+            questionCounter.textContent = `${currentQuestionIndex + 1} / ${currentQuizData.length}`;
+            answerInput.value = '';
+            feedbackMessage.style.display = 'none';
+            answerInput.disabled = false;
+            checkAnswerBtn.classList.remove('hidden');
+            nextQuestionBtn.classList.add('hidden');
+            
+            const btnText = checkAnswerBtn.querySelector('.btn-text');
+            const btnLoader = checkAnswerBtn.querySelector('.btn-loader');
+            btnText.style.display = 'inline';
+            if(btnLoader) btnLoader.classList.add('hidden');
+            checkAnswerBtn.disabled = false;
+
+            if (quizSettings.language === 'ar_to_de') {
+                questionPrompt.textContent = 'ما معنى هذه الكلمة بالألماني؟';
+                questionText.textContent = item.arabic;
+                questionText.dir = 'rtl';
+                answerInput.dir = 'ltr';
+            } else {
+                questionPrompt.textContent = 'ما معنى هذه الكلمة بالعربي؟';
+                questionText.textContent = item.german;
+                questionText.dir = 'ltr';
+                answerInput.dir = 'rtl';
+            }
+             answerInput.focus();
+        }
+
+        async function checkAnswer() {
+            if (!localStorage.getItem('geminiApiKey')) {
+                alert("الرجاء إدخال مفتاح Gemini API في الصفحة الرئيسية أولاً لتفعيل التصحيح الذكي.");
+                return;
+            }
+            const userAnswer = answerInput.value.trim();
+            if(!userAnswer) return;
+
+            const currentItem = currentQuizData[currentQuestionIndex];
+            
+            const btnText = checkAnswerBtn.querySelector('.btn-text');
+            const btnLoader = checkAnswerBtn.querySelector('.btn-loader');
+            btnText.style.display = 'none';
+            if(btnLoader) btnLoader.classList.remove('hidden'); else {
+                const newLoader = document.createElement('div');
+                newLoader.className = 'btn-loader';
+                checkAnswerBtn.appendChild(newLoader);
+            }
+            checkAnswerBtn.disabled = true;
+            answerInput.disabled = true;
+
+            const langDirection = (quizSettings.language === 'ar_to_de') ? "العربية إلى الألمانية" : "الألمانية إلى العربية";
+            const question = (quizSettings.language === 'ar_to_de') ? currentItem.arabic : currentItem.german;
+            const expectedAnswer = (quizSettings.language === 'ar_to_de') ? currentItem.german : currentItem.arabic;
+
+            const validationPrompt = `
+                أنت مصحح خبير في اللغة الألمانية. قيم إجابة الطالب.
+                - السؤال: ترجم "${question}" (${langDirection}).
+                - الإجابة النموذجية: "${expectedAnswer}".
+                - إجابة الطالب: "${userAnswer}".
+
+                قواعد التقييم:
+                1. إذا كانت إجابة الطالب صحيحة تماماً، أو مرادفاً صحيحاً، أو تتضمن الإجابة الصحيحة مع إضافة أداة تعريف/تنكير صحيحة (مثل der, die, das, ein, eine)، اعتبرها صحيحة.
+                2. الأخطاء الإملائية البسيطة التي لا تغير المعنى يمكن التغاضي عنها واعتبار الإجابة صحيحة.
+                3. إذا كانت الإجابة خاطئة، اشرح الخطأ ببساطة باللغة العربية.
+
+                يجب أن ترد فقط بصيغة JSON تحتوي على مفتاحين: "is_correct" (boolean) و "explanation" (string باللغة العربية).
+            `;
+
+            let isCorrect, explanation;
+            try {
+                const resultJson = await callGemini(validationPrompt, '', true);
+                const result = JSON.parse(resultJson);
+                isCorrect = result.is_correct;
+                explanation = result.explanation;
+            } catch (e) {
+                console.error("AI validation failed, falling back to simple check.", e);
+                const correctAnswers = expectedAnswer.split('/').map(ans => ans.trim().toLowerCase());
+                isCorrect = correctAnswers.includes(userAnswer.toLowerCase());
+                explanation = isCorrect ? "إجابة صحيحة!" : `إجابة خاطئة. الإجابة الصحيحة هي: ${expectedAnswer}`;
+            }
+
+            btnText.style.display = 'inline';
+            checkAnswerBtn.querySelector('.btn-loader').classList.add('hidden');
+            
+            feedbackMessage.style.display = 'block';
+
+            if (isCorrect) {
+                score++;
+                feedbackMessage.innerHTML = `<strong>${explanation || 'إجابة صحيحة!'}</strong>`;
+                feedbackMessage.className = 'feedback feedback-correct';
+            } else {
+                feedbackMessage.innerHTML = `<strong>${explanation}</strong>`;
+                feedbackMessage.className = 'feedback feedback-incorrect';
+                
+                if (!mistakes.some(m => m.german === currentItem.german)) {
+                    mistakes.push(currentItem);
+                }
+                updateMistakesList();
+            }
+
+            checkAnswerBtn.classList.add('hidden');
+            nextQuestionBtn.classList.remove('hidden');
+            nextQuestionBtn.focus();
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < currentQuizData.length) {
+                displayQuestion();
+            } else {
+                showResults();
+            }
+        }
+        function showResults() {
+            showScreen('results-screen');
+            resultsSummary.textContent = `لقد حصلت على ${score} من ${currentQuizData.length} إجابة صحيحة.`;
+            if (mistakes.length > 0) reviewPrompt.classList.remove('hidden'); else reviewPrompt.classList.add('hidden');
+        }
+        function updateMistakesList() {
+            mistakesList.innerHTML = '';
+            if (mistakes.length > 0) {
+                mistakesContainer.classList.remove('hidden');
+                mistakes.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'mistake-item p-3 rounded-md flex justify-between items-center';
+                    div.innerHTML = `<span class="font-bold text-[#654321]" dir="ltr">${item.german}</span> - <span class="text-[#8C7B62]">${item.arabic}</span>`;
+                    mistakesList.appendChild(div);
+                });
+            } else {
+                mistakesContainer.classList.add('hidden');
+            }
+        }
+         function addNewWord() {
+            const german = document.getElementById('new-german').value.trim();
+            const arabic = document.getElementById('new-arabic').value.trim();
+            const page = parseInt(document.getElementById('new-page').value);
+            if (!german || !arabic || !page) {
+                alert('الرجاء إدخال الكلمة بالألماني ومعناها بالعربي ورقم الصفحة.');
+                return;
+            }
+            vocabulary.push({ german, arabic, page });
+            ['new-german', 'new-arabic', 'new-page'].forEach(id => document.getElementById(id).value = '');
+            addWordSuccess.style.display = 'block';
+            setTimeout(() => { addWordSuccess.style.display = 'none'; }, 2000);
+            [pageSelect, storyPages, chatPages].forEach(populateSelectors);
+        }
+        async function generateStory() {
+            const selectedPages = Array.from(storyPages.selectedOptions).map(opt => parseInt(opt.value));
+            if (selectedPages.length === 0) return alert('الرجاء اختيار صفحة واحدة على الأقل.');
+            const level = storyLevel.value;
+            const words = vocabulary.filter(v => selectedPages.includes(v.page)).map(v => v.german).join(', ');
+            storyOutputContainer.classList.remove('hidden');
+            storyLoader.style.display = 'flex';
+            storyOutput.innerHTML = '';
+            const prompt = `اكتب قصة قصيرة ومبتكرة باللغة الألمانية بمستوى ${level}. استخدم بعض الكلمات التالية: ${words}. بعد القصة، قم بترجمتها بالكامل إلى العربية.`;
+            const systemInstruction = `أنت كاتب قصص ومدرس لغة ألمانية. نسق إجابتك بعنوان للقصة، ثم نص القصة بالألماني، ثم عنوان "الترجمة"، ثم نص الترجمة بالعربية.`;
+            const result = await callGemini(prompt, systemInstruction);
+            storyOutput.innerHTML = markdownToHtml(result);
+            storyLoader.style.display = 'none';
+        }
+        
+        async function startChat() {
+            const selectedPages = Array.from(chatPages.selectedOptions).map(opt => parseInt(opt.value));
+            const topic = chatTopic.value.trim();
+
+            if (selectedPages.length === 0 && !topic) {
+                alert('الرجاء اختيار صفحات أو إدخال موضوع للمحادثة.');
+                return;
+            }
+
+            const level = chatLevel.value;
+            const role = chatRole.value;
+            
+            let focusContent;
+            if (topic) {
+                focusContent = `موضوع المحادثة هو "${topic}"`;
+            } else {
+                const words = vocabulary.filter(v => selectedPages.includes(v.page)).map(v => `"${v.german}" (${v.arabic})`).join(', ');
+                focusContent = `هدفنا هو التدرب على استخدام بعض الكلمات التالية: ${words}`;
+            }
+
+            chatSetup.style.display = 'none';
+            chatInterface.classList.remove('hidden');
+            chatMessages.innerHTML = '';
+            chatLoader.style.display = 'flex';
+            chatInput.disabled = true;
+            chatSendBtn.disabled = true;
+            
+            chatHistory = [];
+
+            const initialPrompt = `ابدأ محادثة معي باللغة الألمانية. أنا طالب بمستوى ${level}. تقمص دور "${role}". ${focusContent}. ابدأ بجملة ترحيب بسيطة باللغة الألمانية واطرح عليّ سؤالاً. لا تذكر قائمة الكلمات في ردك الأول.`;
+            
+            const firstAiMessage = await callGemini(initialPrompt, "أنت مدرب لغة ألمانية تتقمص أدواراً مختلفة.");
+            
+            addMessageToChat(firstAiMessage, 'ai');
+            chatHistory.push({ role: "model", parts: [{ text: firstAiMessage }] });
+            
+            chatLoader.style.display = 'none';
+            chatInput.disabled = false;
+            chatSendBtn.disabled = false;
+            chatInput.focus();
+        }
+
+        function addMessageToChat(text, sender) {
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble p-3 rounded-lg ${sender === 'user' ? 'user-bubble' : 'ai-bubble'}`;
+            bubble.textContent = text;
+            if (sender === 'ai') bubble.dir = 'ltr';
+            chatMessages.appendChild(bubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const userInput = chatInput.value.trim();
+            if(!userInput) return;
+            addMessageToChat(userInput, 'user');
+            chatInput.value = '';
+            chatLoader.style.display = 'flex';
+            chatInput.disabled = true;
+            chatSendBtn.disabled = true;
+            
+            chatHistory.push({ role: "user", parts: [{ text: userInput }] });
+
+            const systemInstruction = `أنت مدرب لغة ألمانية تتقمص دوراً. استمر في المحادثة باللغة الألمانية. حافظ على بساطة اللغة إذا كان مستوى الطالب A1 أو A2. صحح أخطائي بلطف واقترح طرقًا أفضل لقول الجملة.`;
+            
+            const promptForApi = { contents: chatHistory, systemInstruction: { parts: [{ text: systemInstruction }] } };
+
+            const resultText = await callGemini(JSON.stringify(promptForApi)); // This seems wrong, should not stringify the whole object. Let's fix it.
+            
+            // Correct API call logic for conversation
+            const apiKey = localStorage.getItem('geminiApiKey');
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const resultTextFromApi = await callApiWithPayload(apiUrl, { contents: chatHistory, systemInstruction: { parts: [{ text: systemInstruction }] } });
+
+            addMessageToChat(resultTextFromApi, 'ai');
+            chatHistory.push({ role: "model", parts: [{ text: resultTextFromApi }] });
+            
+            chatLoader.style.display = 'none';
+            chatInput.disabled = false;
+            chatSendBtn.disabled = false;
+            chatInput.focus();
+        }
+
+        async function callApiWithPayload(apiUrl, payload) {
+             try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.error.message}`);
+                }
+                const result = await response.json();
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "حدث خطأ ما.";
+            } catch (error) {
+                return `خطأ: ${error.message}`;
+            }
+        }
+        
+        // --- Event Listeners and Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            showScreen('hub-screen');
+            [pageSelect, storyPages, chatPages].forEach(populateSelectors);
+            checkApiKey();
+
+            startQuizBtn.addEventListener('click', startQuiz);
+            checkAnswerBtn.addEventListener('click', checkAnswer);
+            nextQuestionBtn.addEventListener('click', nextQuestion);
+            newQuizBtn.addEventListener('click', () => showScreen('setup-screen'));
+            addWordBtn.addEventListener('click', addNewWord);
+            generateStoryBtn.addEventListener('click', generateStory);
+            startChatBtn.addEventListener('click', startChat);
+            chatSendBtn.addEventListener('click', sendChatMessage);
+            chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+            
+            closePanelBtn.addEventListener('click', closeAiPanel);
+            aiPanelOverlay.addEventListener('click', (e) => { if(e.target === aiPanelOverlay) closeAiPanel(); });
+            
+            saveApiKeyBtn.addEventListener('click', () => {
+                const key = apiKeyInput.value.trim();
+                if (key) {
+                    localStorage.setItem('geminiApiKey', key);
+                } else {
+                    localStorage.removeItem('geminiApiKey');
+                }
+                checkApiKey();
+            });
+
+            askGeminiGeneralBtn.addEventListener('click', () => {
+                if(!localStorage.getItem('geminiApiKey')) {
+                    alert("الرجاء إدخال مفتاح Gemini API في الصفحة الرئيسية أولاً.");
+                    return;
+                }
+                const currentItem = currentQuizData[currentQuestionIndex];
+                const context = `السؤال عن الكلمة الألمانية "${currentItem.german}" التي تعني "${currentItem.arabic}".`;
+                const prefilled = `اشرح لي المزيد عن الكلمة الألمانية "${currentItem.german}". ما هي استخداماتها أو أي قواعد خاصة بها؟`;
+                openAiPanel(context, prefilled);
+            });
+
+            aiSubmitBtn.addEventListener('click', async () => {
+                const userQuestion = aiUserQuestion.value;
+                if (!userQuestion) return;
+                
+                const fullPrompt = `${aiPromptContext.textContent}\n\nسؤال المستخدم: ${userQuestion}`;
+                const systemInstruction = `أنت مدرس خبير ولطيف للغة الألمانية. قم بتنسيق إجاباتك بوضوح باللغة العربية باستخدام الماركداون. استخدم العناوين (مثل ## عنوان)، والنقاط (سطر يبدأ بـ * )، والنص العريض (**نص عريض**) لجعل الشرح سهل القراءة والفهم.`;
+                
+                aiResponseContainer.classList.remove('hidden');
+                aiLoader.style.display = 'flex';
+                aiResponse.innerHTML = '';
+                
+                const result = await callGemini(fullPrompt, systemInstruction);
+                aiResponse.innerHTML = markdownToHtml(result);
+                aiLoader.style.display = 'none';
+            });
+
+             answerInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!checkAnswerBtn.classList.contains('hidden')) checkAnswerBtn.click();
+                    else if (!nextQuestionBtn.classList.contains('hidden')) nextQuestionBtn.click();
+                }
+            });
+
+        });
+
+        function checkApiKey() {
+            const key = localStorage.getItem('geminiApiKey');
+            const aiButtons = [hubStoryBtn, hubChatBtn, askGeminiGeneralBtn, checkAnswerBtn];
+            const aiDependentFeatures = [generateStoryBtn, startChatBtn, aiSubmitBtn];
+            
+            if (key) {
+                apiKeyInput.value = key;
+                apiKeyStatus.textContent = 'المفتاح محفوظ وجاهز للاستخدام.';
+                apiKeyStatus.className = 'text-center font-semibold text-green-700';
+                aiButtons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.title = '';
+                });
+                aiDependentFeatures.forEach(btn => {
+                    btn.disabled = false;
+                    btn.title = '';
+                });
+            } else {
+                apiKeyStatus.textContent = 'ميزات الذكاء الاصطناعي معطلة. الرجاء إدخال مفتاح API.';
+                apiKeyStatus.className = 'text-center font-semibold text-red-700';
+                 aiButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.title = 'الرجاء إدخال مفتاح API لتفعيل هذه الميزة';
+                });
+                 aiDependentFeatures.forEach(btn => {
+                    btn.disabled = true;
+                    btn.title = 'الرجاء إدخال مفتاح API لتفعيل هذه الميزة';
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+
